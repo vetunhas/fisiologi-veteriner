@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulasi Praktikum Kardiovaskular</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <style>
+        :root {
+            --bg-color: #f5f5f7;
+            --card-bg: #ffffff;
+            --text-main: #1d1d1f;
+            --text-muted: #86868b;
+            --accent-blue: #0071e3;
+            --border-radius: 16px;
+            --shadow: 0 4px 20px rgba(0,0,0,0.05);
+            --red: #ff3b30;
+            --yellow: #ffcc00;
+            --green: #34c759;
+            --black: #1d1d1f;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-main); line-height: 1.6; padding: 2rem 1rem; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 2rem; }
+        h1 { font-size: 2.2rem; font-weight: 600; margin-bottom: 0.5rem; letter-spacing: -0.5px; }
+
+        .tabs { display: flex; justify-content: center; gap: 1rem; margin-bottom: 2rem; }
+        .tab-btn { background: var(--card-bg); border: none; padding: 0.8rem 1.5rem; border-radius: 20px; font-size: 1rem; font-weight: 500; cursor: pointer; box-shadow: var(--shadow); transition: all 0.2s ease; color: var(--text-muted); }
+        .tab-btn.active { background: var(--accent-blue); color: #fff; }
+        .station { display: none; animation: fadeIn 0.4s ease; }
+        .station.active { display: block; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .card { background: var(--card-bg); border-radius: var(--border-radius); padding: 2rem; box-shadow: var(--shadow); margin-bottom: 1.5rem; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+        @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+        h2 { font-size: 1.3rem; margin-bottom: 1rem; font-weight: 600; }
+        p { color: var(--text-muted); margin-bottom: 1rem; font-size: 0.95rem; }
+
+        /* --- STASIUN 1: UI PULSUS MANUAL --- */
+        .controls { display: flex; flex-direction: column; gap: 0.5rem; }
+        .btn { background: var(--bg-color); border: 1px solid #d2d2d7; padding: 0.8rem; border-radius: 12px; font-size: 0.95rem; cursor: pointer; transition: all 0.2s; text-align: left; }
+        .btn:hover:not(:disabled) { background: #e8e8ed; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn.active-target { border-color: var(--accent-blue); background: #f0f8ff; color: var(--accent-blue); font-weight: bold; }
+        .btn.completed { border-color: var(--green); background: #f0fdf4; color: #15803d; }
+        
+        .visual-area { background: #e8e8ed; border-radius: 12px; padding: 1.5rem; display: flex; align-items: center; justify-content: center; position: relative; height: 220px; margin-bottom: 1rem; }
+        .cuff { fill: transparent; stroke: #86868b; stroke-width: 2; transition: all 0.2s ease-out; }
+        
+        .action-group { display: flex; gap: 1rem; margin-top: 1rem; }
+        .pump-btn { background: var(--red); color: white; border: none; padding: 1rem; border-radius: 12px; font-size: 1rem; font-weight: bold; cursor: pointer; flex: 1; transition: transform 0.1s; display: none; box-shadow: 0 4px 10px rgba(255,59,48,0.3); }
+        .pump-btn:active { transform: scale(0.95); }
+        .pump-btn:disabled { background: #a1a1aa; cursor: not-allowed; box-shadow: none; transform: none; }
+        
+        .release-btn { background: var(--accent-blue); color: white; border: none; padding: 1rem; border-radius: 12px; font-size: 1rem; font-weight: bold; cursor: pointer; flex: 1; transition: transform 0.1s; display: none; box-shadow: 0 4px 10px rgba(0,113,227,0.3); }
+        .release-btn:active { transform: scale(0.95); }
+
+        .heart-icon { width: 40px; position: absolute; top: 15px; right: 15px; fill: var(--red); opacity: 0.1; transition: all 0.1s; }
+
+        .monitor { background: #111; border-radius: 12px; padding: 1.5rem; color: #34c759; font-family: 'Courier New', Courier, monospace; text-align: center; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
+        .monitor-values { display: flex; justify-content: space-around; margin-top: 1rem; flex-wrap: wrap; gap: 10px;}
+        .val-box { flex: 1; min-width: 60px; }
+        .val-num { font-size: 2rem; font-weight: bold; display: block; line-height: 1; margin-bottom: 5px; }
+        .val-label { font-size: 0.75rem; color: #86868b; display: block; }
+        .live-pressure { font-size: 1.5rem; color: #ffcc00; margin-bottom: 10px; display: none; }
+        
+        .formula-box { background: #f0f8ff; padding: 1rem; border-radius: 8px; border-left: 4px solid var(--accent-blue); margin-top: 1.5rem; font-size: 0.9rem; overflow-x: auto;}
+
+        /* --- STASIUN 2: UI EKG --- */
+        .ecg-workspace { position: relative; background: #e8e8ed; border-radius: 12px; height: 350px; display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 1rem; }
+        .dog-silhouette { width: 220px; opacity: 0.7; }
+        
+        .node { position: absolute; width: 24px; height: 24px; background: white; border: 3px dashed #86868b; border-radius: 50%; cursor: pointer; transition: all 0.2s; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .node.connected { border-style: solid; border-width: 4px; border-color: white; }
+
+        #node-rf { top: 38%; left: 25%; }
+        #node-lf { top: 38%; left: 75%; }
+        #node-rh { top: 75%; left: 28%; }
+        #node-lh { top: 75%; left: 72%; }
+        #node-chest { top: 52%; left: 50%; }
+
+        .cables { display: flex; justify-content: center; gap: 1.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+        .cable { width: 40px; height: 40px; border-radius: 50%; cursor: pointer; box-shadow: 0 4px 8px rgba(0,0,0,0.2); border: 3px solid transparent; transition: transform 0.2s; }
+        .cable.selected { transform: scale(1.2); border-color: var(--accent-blue); box-shadow: 0 0 15px rgba(0,113,227,0.5); }
+        .cable.used { opacity: 0.2; pointer-events: none; filter: grayscale(100%); }
+
+        .ecg-monitor { background: #fff0f5; background-image: linear-gradient(#ffb6c1 1px, transparent 1px), linear-gradient(90deg, #ffb6c1 1px, transparent 1px); background-size: 20px 20px; border-radius: 8px; height: 160px; position: relative; overflow: hidden; border: 2px solid #d2d2d7; }
+        #ecgCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+
+        .toggle-group { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+        .toggle-btn { flex: 1; padding: 0.6rem; border: 1px solid var(--accent-blue); background: white; color: var(--accent-blue); border-radius: 8px; cursor: pointer; font-size: 0.85rem; text-align: center; font-weight: 500; transition: all 0.2s; }
+        .toggle-btn.active { background: var(--accent-blue); color: white; }
+        .toggle-btn.danger { border-color: var(--red); color: var(--red); }
+        .toggle-btn.danger.active { background: var(--red); color: white; }
+        .instructions { background: #f0f8ff; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid var(--accent-blue); font-size: 0.95rem; }
+        #pathology-panel { display: none; margin-top: 1.5rem; animation: fadeIn 0.5s ease; border-top: 1px solid #e8e8ed; padding-top: 1rem; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Simulasi Praktikum Kardiovaskular</h1>
+        <p>Klinik Keterampilan Medik Veteriner</p>
+    </header>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('stasiun1')">Stasiun 1: Pulsus & Korotkoff</button>
+        <button class="tab-btn" onclick="switchTab('stasiun2')">Stasiun 2: EKG (Dorsal)</button>
+    </div>
+
+    <div id="stasiun1" class="station active">
+        <div class="card">
+            <h2>Pemeriksaan Tekanan Darah & MAP</h2>
+            <p>Pompa manset melampaui tekanan sistolik. Saat katup dibuka, dengarkan fase Korotkoff. Anda akan mendengar representasi <b>S1 (Lub - frekuensi rendah, panjang)</b> dan <b>S2 (Dub - frekuensi tinggi, pendek)</b> tepat di antara tekanan Sistolik dan Diastolik.</p>
+        </div>
+
+        <div class="grid-2">
+            <div class="card">
+                <h2>1. Pilih Kondisi Subjek</h2>
+                
+                <div class="controls" id="bp-controls">
+                    <button class="btn" onclick="prepareMeasurement('Duduk', 120, 80, 72, this)">A. Posisi Duduk (Normal)</button>
+                    <button class="btn" onclick="prepareMeasurement('Berdiri', 115, 82, 85, this)" disabled>B. Posisi Berdiri</button>
+                    <button class="btn" onclick="prepareMeasurement('Berbaring', 110, 75, 65, this)" disabled>C. Posisi Berbaring</button>
+                    <button class="btn" onclick="prepareMeasurement('Air Es', 135, 90, 95, this)" disabled>D. Uji *Cold Pressor* (Air Es)</button>
+                    <button class="btn" onclick="prepareMeasurement('Aktivitas', 145, 85, 125, this)" disabled>E. Pasca Aktivitas Fisik (Lari)</button>
+                </div>
+
+                <div class="action-group">
+                    <button class="pump-btn" id="btn-pump" onclick="pumpAction()">🖲️ POMPA MANSET</button>
+                    <button class="release-btn" id="btn-release" onclick="releaseValve()">💨 BUKA KATUP</button>
+                </div>
+
+                <div class="visual-area" style="margin-top: 1rem;">
+                    <svg class="heart-icon" id="heart-anim" viewBox="0 0 24 24">
+                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                    </svg>
+                    <svg width="180" height="180" viewBox="0 0 200 200">
+                        <circle cx="100" cy="50" r="30" fill="#a1a1aa"/>
+                        <rect x="90" y="70" width="20" height="25" fill="#a1a1aa"/>
+                        <path d="M60,95 Q100,85 140,95 L130,200 L70,200 Z" fill="#d2d2d7"/>
+                        <path d="M140,95 Q170,110 175,160" fill="none" stroke="#a1a1aa" stroke-width="22" stroke-linecap="round"/>
+                        <rect class="cuff" id="cuff-anim" x="145" y="110" width="35" height="20" transform="rotate(15 145 110)" rx="4"/>
+                        <path d="M165,130 Q190,150 180,190" fill="none" stroke="#86868b" stroke-width="3"/>
+                    </svg>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Monitor Digital</h2>
+                <div class="monitor">
+                    <div style="font-size: 0.9rem; margin-bottom: 5px; color: #fff;" id="monitor-status">Pilih skenario di sebelah kiri...</div>
+                    <div class="live-pressure" id="live-pressure">Tekanan: 0 mmHg</div>
+                    
+                    <div class="monitor-values" id="final-results" style="opacity: 0.3;">
+                        <div class="val-box"><span class="val-num" id="val-sys">--</span><span class="val-label">SYS (mmHg)</span></div>
+                        <div class="val-box"><span class="val-num" id="val-dia">--</span><span class="val-label">DIA (mmHg)</span></div>
+                        <div class="val-box"><span class="val-num" id="val-hr">--</span><span class="val-label">HR (bpm)</span></div>
+                        <div class="val-box"><span class="val-num" id="val-map" style="color:#0071e3;">--</span><span class="val-label">MAP (mmHg)</span></div>
+                    </div>
+                </div>
+
+                <div class="formula-box">
+                    <strong>Rumus Mean Arterial Pressure (MAP):</strong><br>
+                    Perfusi organ vital bergantung pada MAP. Dihitung dengan rumus:
+                    $$MAP = P_{diastolik} + \frac{1}{3}(P_{sistolik} - P_{diastolik})$$
+                </div>
+
+                <h2 style="margin-top: 2rem;">Grafik Observasi</h2>
+                <canvas id="bpChart" width="400" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div id="stasiun2" class="station">
+        <div class="card">
+            <h2>Perekaman Elektrokardiogram</h2>
+            <p>Pasang kabel berdasarkan kode warna standar ke titik anatomi anjing (<b>Dorsal Recumbency</b>). Gelombang kelistrikan jantung akan diwarnai sesuai segmennya.</p>
+        </div>
+
+        <div class="grid-2">
+            <div class="card">
+                <h2>Meja Kerja: Elektroda</h2>
+                <div class="instructions" id="ecg-instruction">Klik warna kabel, lalu pasangkan ke anatomi anjing yang tepat.</div>
+                
+                <div class="cables">
+                    <div class="cable" style="background: var(--red);" onclick="selectCable('red')"></div>
+                    <div class="cable" style="background: var(--yellow);" onclick="selectCable('yellow')"></div>
+                    <div class="cable" style="background: var(--green);" onclick="selectCable('green')"></div>
+                    <div class="cable" style="background: var(--black);" onclick="selectCable('black')"></div>
+                    <div class="cable" style="background: #ffffff; border-color: #d2d2d7;" onclick="selectCable('white')"></div>
+                </div>
+
+                <div class="ecg-workspace">
+                    <svg class="dog-silhouette" viewBox="0 0 200 300">
+                        <circle cx="100" cy="50" r="35" fill="#a1a1aa"/>
+                        <path d="M70,40 Q40,60 50,90 Q65,60 80,75 Z" fill="#a1a1aa"/>
+                        <path d="M130,40 Q160,60 150,90 Q135,60 120,75 Z" fill="#a1a1aa"/>
+                        <circle cx="100" cy="65" r="15" fill="#d2d2d7"/>
+                        <ellipse cx="100" cy="160" rx="45" ry="75" fill="#d2d2d7"/>
+                        <line x1="100" y1="95" x2="100" y2="160" stroke="#a1a1aa" stroke-width="2"/>
+                        <path d="M65,110 Q20,100 25,140" fill="none" stroke="#a1a1aa" stroke-width="18" stroke-linecap="round"/>
+                        <path d="M135,110 Q180,100 175,140" fill="none" stroke="#a1a1aa" stroke-width="18" stroke-linecap="round"/>
+                        <path d="M70,220 Q40,260 35,280" fill="none" stroke="#a1a1aa" stroke-width="20" stroke-linecap="round"/>
+                        <path d="M130,220 Q160,260 165,280" fill="none" stroke="#a1a1aa" stroke-width="20" stroke-linecap="round"/>
+                    </svg>
+                    <div class="node" id="node-rf" data-target="red" onclick="connectNode(this)"></div>
+                    <div class="node" id="node-lf" data-target="yellow" onclick="connectNode(this)"></div>
+                    <div class="node" id="node-rh" data-target="black" onclick="connectNode(this)"></div>
+                    <div class="node" id="node-lh" data-target="green" onclick="connectNode(this)"></div>
+                    <div class="node" id="node-chest" data-target="white" onclick="connectNode(this)"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Kertas Monitor EKG (Berwarna)</h2>
+                <div class="ecg-monitor"><canvas id="ecgCanvas"></canvas></div>
+                
+                <h3 style="margin-top: 1rem; font-size: 0.9rem; color: var(--text-muted);">Kecepatan Kertas</h3>
+                <div class="toggle-group">
+                    <button class="toggle-btn active" id="btn-25" onclick="setEcgSpeed(25)">25 mm/detik</button>
+                    <button class="toggle-btn" id="btn-50" onclick="setEcgSpeed(50)">50 mm/detik</button>
+                </div>
+
+                <div id="pathology-panel">
+                    <h3 style="font-size: 0.9rem; color: var(--text-muted);">Simulasi Kondisi Klinis</h3>
+                    <div class="toggle-group">
+                        <button class="toggle-btn active" id="cond-normal" onclick="setCondition('normal')">Normal (NSR)</button>
+                        <button class="toggle-btn danger" id="cond-tachy" onclick="setCondition('tachycardia')">Takikardia</button>
+                        <button class="toggle-btn danger" id="cond-brady" onclick="setCondition('bradycardia')">Bradikardia</button>
+                        <button class="toggle-btn danger" id="cond-afib" onclick="setCondition('arrhythmia')">Fibrilasi Atrium</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function switchTab(tabId) {
+        document.querySelectorAll('.station').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        event.target.classList.add('active');
+    }
+
+    // ================= SINTESIS AUDIO (LUB-DUB TEORITIS) =================
+    let audioCtx;
+    function initAudio() {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function playHeartbeat() {
+        initAudio();
+        const now = audioCtx.currentTime;
+        
+        // S1 (LUB): Penutupan Katup AV - Frekuensi lebih rendah, durasi lebih panjang, suara lebih tumpul (triangle)
+        const osc1 = audioCtx.createOscillator();
+        const gain1 = audioCtx.createGain();
+        osc1.type = 'triangle'; 
+        osc1.frequency.setValueAtTime(45, now); 
+        osc1.frequency.exponentialRampToValueAtTime(20, now + 0.15); // Durasi 0.15s
+        gain1.gain.setValueAtTime(1, now); 
+        gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+        osc1.connect(gain1); gain1.connect(audioCtx.destination);
+        osc1.start(now); osc1.stop(now + 0.15);
+
+        // S2 (DUB): Penutupan Katup Semilunar - Frekuensi lebih tinggi, durasi lebih pendek, tajam (sine)
+        const osc2 = audioCtx.createOscillator();
+        const gain2 = audioCtx.createGain();
+        osc2.type = 'sine'; 
+        osc2.frequency.setValueAtTime(70, now + 0.25); // Jeda sistolik (0.1s setelah S1 selesai)
+        osc2.frequency.exponentialRampToValueAtTime(30, now + 0.33); // Durasi 0.08s
+        gain2.gain.setValueAtTime(0.8, now + 0.25); 
+        gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.33);
+        osc2.connect(gain2); gain2.connect(audioCtx.destination);
+        osc2.start(now + 0.25); osc2.stop(now + 0.33);
+    }
+
+    // ================= LOGIKA STASIUN 1 (KOROTKOFF & MAP) =================
+    let bpChartInstance = null;
+    const chartLabels = [], sysData = [], diaData = [], hrData = [];
+    let currentStep = 0, activeScenario = null, currentPressure = 0, maxPressureTarget = 180;
+    let deflationInterval, heartbeatInterval;
+
+    function initChart() {
+        const ctx = document.getElementById('bpChart').getContext('2d');
+        bpChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: chartLabels,
+                datasets: [
+                    { label: 'Sistolik', data: sysData, borderColor: '#ff3b30', tension: 0.3, backgroundColor: 'rgba(255, 59, 48, 0.1)', fill: true },
+                    { label: 'Diastolik', data: diaData, borderColor: '#0071e3', tension: 0.3 },
+                    { label: 'HR', data: hrData, borderColor: '#34c759', tension: 0.3, borderDash: [5, 5] }
+                ]
+            },
+            options: { responsive: true, scales: { y: { min: 50, max: 180 } } }
+        });
+    }
+
+    function prepareMeasurement(kondisi, sys, dia, hr, btnElement) {
+        clearInterval(deflationInterval); clearInterval(heartbeatInterval);
+        currentPressure = 0;
+        document.getElementById('live-pressure').innerText = `Tekanan: 0 mmHg`;
+        document.getElementById('live-pressure').style.display = 'block';
+        document.getElementById('final-results').style.opacity = '0.3';
+        document.getElementById('val-sys').innerText = '--'; document.getElementById('val-dia').innerText = '--'; 
+        document.getElementById('val-hr').innerText = '--'; document.getElementById('val-map').innerText = '--';
+        document.querySelectorAll('#bp-controls .btn').forEach(b => b.classList.remove('active-target'));
+        btnElement.classList.add('active-target');
+        
+        document.getElementById('monitor-status').innerText = `Pompa manset melewati batas tekanan darah (~160-180 mmHg)...`;
+        
+        const pumpBtn = document.getElementById('btn-pump');
+        pumpBtn.style.display = 'block'; pumpBtn.disabled = false;
+        document.getElementById('btn-release').style.display = 'none';
+
+        activeScenario = { kondisi, sys, dia, hr, btnElement };
+        document.getElementById('cuff-anim').style.strokeWidth = "2";
+        document.getElementById('cuff-anim').style.fill = "transparent";
+    }
+
+    function pumpAction() {
+        if (!activeScenario) return;
+        initAudio();
+        currentPressure += Math.floor(Math.random() * 20) + 15;
+        if(currentPressure > maxPressureTarget) currentPressure = maxPressureTarget;
+
+        document.getElementById('live-pressure').innerText = `Tekanan: ${currentPressure} mmHg`;
+        document.getElementById('live-pressure').style.color = currentPressure > 140 ? '#ff3b30' : '#ffcc00';
+
+        const strokeW = 2 + (currentPressure / maxPressureTarget) * 10;
+        document.getElementById('cuff-anim').style.strokeWidth = strokeW;
+        document.getElementById('cuff-anim').style.fill = `rgba(0, 113, 227, ${currentPressure/maxPressureTarget * 0.5})`;
+
+        if (currentPressure >= maxPressureTarget) {
+            document.getElementById('btn-pump').style.display = 'none';
+            document.getElementById('btn-release').style.display = 'block';
+            document.getElementById('monitor-status').innerText = "Arteri tertutup (Oklusi). Silakan buka katup perlahan.";
+        }
+    }
+
+    function releaseValve() {
+        document.getElementById('btn-release').style.display = 'none';
+        document.getElementById('monitor-status').innerText = `Mengempiskan manset. Mendengarkan suara Korotkoff...`;
+        
+        const beatDelay = (60 / activeScenario.hr) * 1000;
+        
+        heartbeatInterval = setInterval(() => {
+            if (currentPressure <= activeScenario.sys && currentPressure >= activeScenario.dia) {
+                playHeartbeat();
+                const heart = document.getElementById('heart-anim');
+                heart.style.opacity = "1"; heart.style.transform = "scale(1.4)";
+                setTimeout(() => { heart.style.transform = "scale(1)"; }, 150);
+                setTimeout(() => { heart.style.opacity = "0.1"; }, 300);
+            }
+        }, beatDelay);
+
+        deflationInterval = setInterval(() => {
+            currentPressure -= 2;
+            document.getElementById('live-pressure').innerText = `Tekanan: ${currentPressure} mmHg`;
+            
+            const strokeW = 2 + (currentPressure / maxPressureTarget) * 10;
+            document.getElementById('cuff-anim').style.strokeWidth = strokeW;
+            document.getElementById('cuff-anim').style.fill = `rgba(0, 113, 227, ${Math.max(0, currentPressure/maxPressureTarget * 0.5)})`;
+
+            if (currentPressure < activeScenario.dia - 15) { 
+                clearInterval(deflationInterval); clearInterval(heartbeatInterval);
+                
+                // Kalkulasi MAP
+                const mapCalc = Math.round(activeScenario.dia + ((activeScenario.sys - activeScenario.dia) / 3));
+
+                document.getElementById('live-pressure').style.display = 'none';
+                document.getElementById('final-results').style.opacity = '1';
+                document.getElementById('val-sys').innerText = activeScenario.sys;
+                document.getElementById('val-dia').innerText = activeScenario.dia;
+                document.getElementById('val-hr').innerText = activeScenario.hr;
+                document.getElementById('val-map').innerText = mapCalc;
+                document.getElementById('monitor-status').innerText = `Selesai: ${activeScenario.kondisi}`;
+                
+                chartLabels.push(activeScenario.kondisi); sysData.push(activeScenario.sys); diaData.push(activeScenario.dia); hrData.push(activeScenario.hr);
+                bpChartInstance.update();
+
+                activeScenario.btnElement.classList.remove('active-target'); activeScenario.btnElement.classList.add('completed'); activeScenario.btnElement.disabled = true;
+                currentStep++;
+                const btns = document.querySelectorAll('#bp-controls .btn');
+                if(currentStep < btns.length) btns[currentStep].disabled = false;
+                activeScenario = null;
+            }
+        }, 80);
+    }
+
+    // ================= LOGIKA STASIUN 2 (EKG PQRST BERWARNA) =================
+    let selectedCable = null, connectedNodes = 0;
+    let ecgSpeed = 25, ecgOffset = 0, currentCondition = 'normal';
+    let isEcgRunning = false;
+
+    function selectCable(color) {
+        document.querySelectorAll('.cable').forEach(c => c.classList.remove('selected'));
+        event.target.classList.add('selected');
+        selectedCable = color;
+        document.getElementById('ecg-instruction').innerHTML = `Kabel terpilih. Pasangkan ke anatomi yang tepat!`;
+    }
+
+    function connectNode(nodeElement) {
+        if(!selectedCable) return alert("Pilih warna kabel terlebih dahulu!");
+        const targetColor = nodeElement.getAttribute('data-target');
+        
+        if(selectedCable === targetColor) {
+            const colors = {'red': '#ff3b30', 'yellow': '#ffcc00', 'green': '#34c759', 'black': '#1d1d1f', 'white': '#ffffff'};
+            nodeElement.style.backgroundColor = colors[targetColor];
+            nodeElement.classList.add('connected');
+            
+            document.querySelector(`.cable.selected`).classList.add('used');
+            document.querySelector(`.cable.selected`).classList.remove('selected');
+            selectedCable = null;
+            connectedNodes++;
+
+            if(connectedNodes === 5 && !isEcgRunning) {
+                document.getElementById('ecg-instruction').innerHTML = "<span style='color:green; font-weight:bold;'>Sempurna! Elektroda terpasang. Mesin EKG aktif.</span>";
+                document.getElementById('pathology-panel').style.display = 'block';
+                startECG();
+            }
+        } else {
+            alert("Salah penempatan! Ingat hafalan warna standar internasional.");
+        }
+    }
+
+    function setEcgSpeed(speed) {
+        ecgSpeed = speed;
+        document.querySelectorAll('.toggle-btn').forEach(b => { if(b.id.startsWith('btn-')) b.classList.remove('active'); });
+        document.getElementById(`btn-${speed}`).classList.add('active');
+    }
+
+    function setCondition(cond) {
+        currentCondition = cond;
+        document.querySelectorAll('#pathology-panel .toggle-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById(`cond-${cond.split('a')[0]}`).classList.add('active'); 
+        if(cond === 'normal') document.getElementById('cond-normal').classList.add('active');
+    }
+
+    function startECG() {
+        isEcgRunning = true;
+        const canvas = document.getElementById('ecgCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+
+        function drawECG() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const centerY = canvas.height / 2;
+            const stretch = ecgSpeed === 50 ? 2 : 1; 
+            
+            let baseLen = 180;
+            if(currentCondition === 'tachycardia') baseLen = 90;
+            if(currentCondition === 'bradycardia') baseLen = 320;
+            let isAfib = (currentCondition === 'arrhythmia');
+
+            let prevX = 0, prevY = centerY;
+
+            for(let x = 0; x < canvas.width; x++) {
+                let waveX = (x + ecgOffset);
+                let currentWaveLen = baseLen * stretch;
+
+                if(isAfib) {
+                    let cycle = Math.floor(waveX / 200);
+                    currentWaveLen = (180 + Math.sin(cycle * 13) * 60) * stretch;
+                }
+
+                waveX = waveX % currentWaveLen;
+                let normalizedX = waveX / stretch;
+                let y = centerY;
+                
+                let wavePart = 'baseline';
+
+                if (isAfib) {
+                    y += Math.sin(normalizedX * 1.5) * 3 + (Math.random() * 2 - 1);
+                }
+
+                // Definisi Segmen PQRST
+                if (!isAfib && normalizedX > 20 && normalizedX < 35) {
+                    y -= Math.sin((normalizedX - 20) * Math.PI / 15) * 7;
+                    wavePart = 'P';
+                }
+                else if (normalizedX > 55 && normalizedX < 62) { y += 8; wavePart = 'Q'; } 
+                else if (normalizedX >= 62 && normalizedX < 72) { y -= 55; wavePart = 'R'; } 
+                else if (normalizedX >= 72 && normalizedX < 82) { y += 12; wavePart = 'S'; }
+                else if (normalizedX > 100 && normalizedX < 130) {
+                    let tAmp = isAfib ? 6 : 10;
+                    y -= Math.sin((normalizedX - 100) * Math.PI / 30) * tAmp;
+                    wavePart = 'T';
+                }
+
+                // Eksekusi Gambar Warna
+                ctx.beginPath();
+                ctx.lineWidth = 2;
+                if (wavePart === 'P') ctx.strokeStyle = '#0071e3'; // Biru (Depolarisasi Atrium)
+                else if (wavePart === 'Q') ctx.strokeStyle = '#ff9500'; // Oranye
+                else if (wavePart === 'R') ctx.strokeStyle = '#ff3b30'; // Merah (Depolarisasi Ventrikel)
+                else if (wavePart === 'S') ctx.strokeStyle = '#af52de'; // Ungu
+                else if (wavePart === 'T') ctx.strokeStyle = '#34c759'; // Hijau (Repolarisasi Ventrikel)
+                else ctx.strokeStyle = '#1d1d1f'; // Hitam (Baseline isoelektrik)
+                
+                ctx.moveTo(prevX, prevY);
+                ctx.lineTo(x, y);
+                ctx.stroke();
+
+                // Render Huruf PQRST
+if (!isAfib) {
+    ctx.font = "bold 13px Arial";
+    ctx.fillStyle = ctx.strokeStyle;
+    
+    if (Math.abs(normalizedX - 28) < 0.5/stretch) ctx.fillText('P', x - 4, y - 8);
+    if (Math.abs(normalizedX - 60) < 0.5/stretch) ctx.fillText('Q', x - 5, y + 15);
+    if (Math.abs(normalizedX - 67) < 0.5/stretch) ctx.fillText('R', x - 5, y - 10);
+    if (Math.abs(normalizedX - 77) < 0.5/stretch) ctx.fillText('S', x - 5, y + 15);
+    if (Math.abs(normalizedX - 115) < 0.5/stretch) ctx.fillText('T', x - 4, y - 10);
+}
+
+                prevX = x; prevY = y;
+            }
+            ecgOffset += 2; 
+            requestAnimationFrame(drawECG);
+        }
+        drawECG();
+    }
+
+    window.onload = initChart;
+</script>
+
+</body>
+</html>
