@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eksperimen Reseptor Lidah - Spektrum Lengkap & Umami</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --apple-bg: #f5f5f7;
+            --apple-card: #ffffff;
+            --text-main: #1d1d1f;
+            --accent-blue: #0071e3;
+        }
+
+        body {
+            font-family: -apple-system, system-ui, sans-serif;
+            background-color: var(--apple-bg);
+            margin: 0; padding: 10px 20px;
+            display: flex; flex-direction: column; align-items: center;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+            width: 100%;
+            max-width: 1200px;
+            height: calc(100% - 60px);
+        }
+
+        .panel {
+            background: var(--apple-card);
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 4px 30px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Pisahkan styling antar canvas */
+        canvas { border-radius: 15px; background: #fff; width: 100%; }
+        
+        #simCanvas {
+            height: 100%;
+            object-fit: contain; /* Memastikan simulasi mengecil proporsional tanpa terpotong */
+        }
+
+        .controls-section { margin-bottom: 15px; }
+        h3 { font-size: 0.8rem; color: #86868b; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 1px; }
+
+        .btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        
+        button {
+            border: none; padding: 10px; border-radius: 10px;
+            font-size: 13px; font-weight: 600; cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .btn-flavor { background: #f2f2f7; color: #1d1d1f; border: 1px solid #d1d1d6; }
+        .btn-flavor.active { background: #34c759; color: white; border-color: #34c759; }
+        .btn-mod { background: #0071e3; color: white; }
+        .btn-reset { background: #ff3b30; color: white; grid-column: span 2; margin-top: 5px; }
+
+        .chart-panel {
+            margin-top: auto; /* Mendorong grafik selalu ke area paling bawah panel */
+            height: 140px;
+            background: #111;
+            border-radius: 15px;
+            padding: 15px;
+        }
+
+        .status-box {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 12px;
+            background: #fbfbfd;
+            border-left: 4px solid #0071e3;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+
+<header style="text-align: center; margin-bottom: 10px;">
+    <h1 style="margin:0;">Analisis Kinematika Reseptor</h1>
+    <p style="color: #6e6e73;">Observasi Transduksi Sinyal: Rasa Dasar & Umami</p>
+</header>
+
+<div class="main-grid">
+    <div class="panel">
+        <div class="controls-section">
+            <h3>Stimulus (5 Rasa Dasar)</h3>
+            <div class="btn-group">
+                <button class="btn-flavor" id="b-manis" onclick="setFlavor('manis','#FF66B2')">Manis</button>
+                <button class="btn-flavor" id="b-asin" onclick="setFlavor('asin','#4FACFE')">Asin</button>
+                <button class="btn-flavor" id="b-asam" onclick="setFlavor('asam','#F6D365')">Asam</button>
+                <button class="btn-flavor" id="b-pahit" onclick="setFlavor('pahit','#6B9336')">Pahit</button>
+                <button class="btn-flavor" id="b-umami" onclick="setFlavor('umami','#A18CD1')" style="grid-column: span 2;">Umami (Gurih)</button>
+            </div>
+        </div>
+
+        <div class="controls-section">
+            <h3>Variabel Bebas (Gangguan)</h3>
+            <div class="btn-group">
+                <button class="btn-mod" onclick="setMod('kopi','#6F4E37')">☕ Kafein</button>
+                <button class="btn-mod" onclick="setMod('cabe','#FF3B30')">🌶️ Kapsaisin</button>
+                <button class="btn-mod" onclick="setMod('panas','#FF9500')">🔥 Panas</button>
+                <button class="btn-mod" onclick="setMod('dingin','#5AC8FA')">❄️ Dingin</button>
+                <button class="btn-reset" onclick="resetAll()">Kumur (Reset)</button>
+            </div>
+        </div>
+
+        <div class="status-box" id="desc-box">
+            <b>Baseline:</b> Pilih stimulus rasa (termasuk Umami) untuk melihat profil sinyal normal.
+        </div>
+        
+        <div class="chart-panel">
+            <canvas id="signalChart"></canvas>
+        </div>
+    </div>
+
+    <div class="panel">
+        <canvas id="simCanvas" width="800" height="550"></canvas>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    const signalCtx = document.getElementById('signalChart').getContext('2d');
+
+    let particles = [];
+    let currentFlavor = null;
+    let currentMod = null;
+    let flavorColor = '#ccc';
+    let modColor = '#000';
+    let signalData = Array(50).fill(0);
+    let frame = 0;
+
+    const chart = new Chart(signalCtx, {
+        type: 'line',
+        data: {
+            labels: signalData.map((_,i)=>i),
+            datasets: [{
+                data: signalData,
+                borderColor: '#00ff00',
+                borderWidth: 2,
+                tension: 0.4,
+                pointRadius: 0
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            animation: { duration: 0 },
+            scales: { x: { display: false }, y: { min: -10, max: 120, display: false } },
+            plugins: { legend: { display: false } }
+        }
+    });
+
+    class Molecule {
+        constructor(color, isMod) {
+            this.x = canvas.width/2 + (Math.random() - 0.5) * 60;
+            this.y = 50;
+            this.isMod = isMod;
+            this.color = color;
+            this.setSpeed();
+            this.stuck = false;
+        }
+
+        setSpeed() {
+            let baseSpeed = 1.0; 
+            if (currentMod === 'dingin') baseSpeed = 0.25;
+            if (currentMod === 'panas') baseSpeed = 2.8;
+            this.speed = baseSpeed + Math.random() * 0.4;
+        }
+
+        update() {
+            if (!this.stuck) {
+                let speedMult = 1;
+                if (currentMod === 'kopi' && !this.isMod && this.y > 180 && this.y < 230) {
+                    speedMult = 0.12; 
+                }
+                
+                this.y += (this.speed * speedMult);
+
+                if (this.y > 280 && Math.abs(this.x - canvas.width/2) < 30) {
+                    this.stuck = true;
+                    setTimeout(() => { this.y = 1000; }, 1800);
+                }
+            }
+        }
+
+        draw() {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.isMod ? 7 : 5, 0, Math.PI*2);
+            ctx.fillStyle = this.color;
+            ctx.fill();
+        }
+    }
+
+    function setFlavor(f, c) {
+        currentFlavor = f;
+        flavorColor = c;
+        document.querySelectorAll('.btn-flavor').forEach(b => b.classList.remove('active'));
+        document.getElementById('b-'+f).classList.add('active');
+        spawn(c, false);
+    }
+
+    function setMod(m, c) {
+        currentMod = m;
+        modColor = c;
+        let txt = "";
+        if(m === 'kopi') txt = "<b>KAFEIN:</b> Menghambat saluran ion dan pori. Perhatikan <i>delay</i> molekul rasa di area pori.";
+        if(m === 'cabe') txt = "<b>KAPSAISIN:</b> Eksitasi nosiseptor (nyeri). Sinyal meledak dan menutupi persepsi rasa.";
+        if(m === 'panas') txt = "<b>PANAS:</b> Kinetika molekul meningkat drastis. Sinyal saraf menjadi sangat rapat.";
+        if(m === 'dingin') txt = "<b>DINGIN:</b> Molekul hampir membeku (statis). Respon sensorik sangat minim.";
+        document.getElementById('desc-box').innerHTML = txt;
+        spawn(c, true);
+    }
+
+    function spawn(color, isMod) {
+        for(let i=0; i<15; i++) {
+            setTimeout(() => particles.push(new Molecule(color, isMod)), i * 180);
+        }
+    }
+
+    function resetAll() {
+        currentFlavor = null; currentMod = null; particles = [];
+        document.querySelectorAll('.btn-flavor').forEach(b => b.classList.remove('active'));
+        document.getElementById('desc-box').innerHTML = "<b>Lidah Bersih:</b> Baseline reset.";
+    }
+
+    function drawLabels() {
+        ctx.font = "bold 13px sans-serif";
+        ctx.fillStyle = "#86868b";
+        ctx.fillText("PAPILA FUNGIFORMIS", canvas.width/2 + 100, 350);
+        ctx.fillText("TASTE BUD (KUNCUP)", canvas.width/2 - 220, 300);
+        ctx.fillText("GUSTATORY PORE (PORI)", canvas.width/2 + 60, 210);
+        ctx.fillStyle = "#FF9500";
+        ctx.fillText("SARAF AFEREN (SIGNAL)", canvas.width/2 - 80, 480);
+    }
+
+    function animate() {
+        ctx.clearRect(0,0,canvas.width, canvas.height);
+        frame++;
+
+        const cx = canvas.width/2;
+        ctx.beginPath();
+        ctx.moveTo(cx - 150, 500);
+        ctx.quadraticCurveTo(cx, 100, cx + 150, 500);
+        ctx.fillStyle = currentMod === 'panas' ? '#FFDADA' : (currentMod === 'dingin' ? '#E1F5FE' : '#FFF0F0');
+        ctx.fill();
+        ctx.strokeStyle = '#FFC1C1'; ctx.lineWidth = 3; ctx.stroke();
+
+        ctx.beginPath();
+        ctx.ellipse(cx, 320, 50, 90, 0, 0, Math.PI*2);
+        ctx.fillStyle = '#FFFFFF'; ctx.fill(); ctx.stroke();
+
+        ctx.beginPath();
+        let poreW = currentMod === 'dingin' ? 3 : 18;
+        ctx.arc(cx, 230, poreW, 0, Math.PI, true);
+        ctx.fillStyle = '#333'; ctx.fill();
+
+        drawLabels();
+
+        particles.forEach((p, i) => {
+            p.update();
+            p.draw();
+            if(p.y > 600) particles.splice(i, 1);
+        });
+
+        if(frame % 2 === 0) {
+            let target = 0;
+            if(currentFlavor) target = 45;
+            if(currentMod === 'kopi') target *= 0.35;
+            if(currentMod === 'cabe') target = 100;
+            if(currentMod === 'panas') target += 35;
+            if(currentMod === 'dingin') target *= 0.05;
+
+            let val = (Math.sin(frame * 0.12) * target/2) + target;
+            signalData.push(val);
+            signalData.shift();
+            chart.data.datasets[0].data = signalData;
+            chart.data.datasets[0].borderColor = currentMod ? modColor : (currentFlavor ? flavorColor : '#00ff00');
+            chart.update('none');
+        }
+
+        requestAnimationFrame(animate);
+    }
+
+    animate();
+</script>
+</body>
+</html>
